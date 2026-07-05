@@ -1,0 +1,31 @@
+[package]
+name = "sdk-rust"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+blocking = ["maybe-async/is_sync", "tungstenite/native-tls"]
+tokio-runtime = ["dep:async-tungstenite","async-tungstenite/tokio-runtime","async-tungstenite/tokio-native-tls"]
+gio-runtime = ["dep:async-tungstenite","async-tungstenite/gio-runtime"]
+smol-runtime = ["dep:async-tungstenite","async-tungstenite/smol-runtime","async-tungstenite/smol-native-tls"]
+
+[dependencies]
+prost = "0.14.4"
+thiserror = "2.0.18"
+
+tungstenite = "0.29.0"
+async-tungstenite = { version = "0.34.1", optional = true }
+maybe-async = "0.2.11"
+async-trait = "0.1"
+futures-lite = "2.6.1"
+mutually_exclusive_features = "0.1.0"
+
+[dev-dependencies]
+# for running examples
+clap = { version = "4.6.1", features = ["derive"] }
+tokio = { version = "1.52.3", features = ["full"] }
+ # set sync/async client feature for testing here
+sdk-rust = { path = ".", features = ["blocking"] }
+
+[build-dependencies]
+prost-build = "0.14.4"
