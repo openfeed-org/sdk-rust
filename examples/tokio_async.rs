@@ -5,14 +5,19 @@ mod common;
 use {
     clap::Parser,
     futures_lite::StreamExt,
-    sdk_rust::{client, error::OpenfeedResult},
+    sdk_rust::{
+        client,
+        error::OpenfeedResult,
+        openfeed::{Service, SubscriptionType, openfeed_gateway_message::Data::*},
+    },
 };
 
 #[cfg(feature = "tokio-runtime")]
 async fn run(config: client::OpenfeedConfig, symbols: Vec<String>) -> OpenfeedResult<()> {
     let mut c = client::OpenfeedClient::new(config);
     c.connect().await?;
-    c.subscribe_symbols(symbols).await?;
+    c.subscribe_symbols(symbols, &[SubscriptionType::Quote], Service::RealTime)
+        .await?;
 
     let mut messages = c.read_messages().await;
     let ctrl_c = tokio::signal::ctrl_c();
@@ -25,8 +30,11 @@ async fn run(config: client::OpenfeedConfig, symbols: Vec<String>) -> OpenfeedRe
                 break;
             }
             Some(message) = messages.next() => {
-                if let Some(m) = message?.data {
-                    println!("{:?}", m);
+                // Add handlers for message types here
+                match message?.data {
+                    Some(InstrumentDefinition(m)) => println!("instrument: {:?}", m),
+                    Some(MarketUpdate(m)) => println!("market update: {:?}", m),
+                    _ => {}
                 }
             }
         }
@@ -44,7 +52,6 @@ async fn main() {
         username: args.username,
         password: args.password,
         server: args.server,
-        service: args.service,
     };
 
     let symbols: Vec<String> = args

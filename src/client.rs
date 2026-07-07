@@ -2,35 +2,32 @@
 use futures_lite::StreamExt;
 
 use prost::Message;
+use std::default::Default;
 use tungstenite::Bytes;
 
 use crate::{
     connection::{Connection, ConnectionType, Feed},
     error::{OpenfeedError, OpenfeedResult},
     openfeed::{
-        LoginRequest, LogoutRequest, OpenfeedGatewayMessage, OpenfeedGatewayRequest, Result,
-        Service, SubscriptionRequest, SubscriptionType,
+        ExchangeRequest, InstrumentRequest, LoginRequest, LogoutRequest, OpenfeedGatewayMessage,
+        OpenfeedGatewayRequest, Result, Service, SubscriptionRequest, SubscriptionType,
+        instrument_request::Request as DefRequest,
         openfeed_gateway_message::Data::{LoginResponse, LogoutResponse},
         openfeed_gateway_request::Data::{
+            ExchangeRequest as ExchangeRequestData, InstrumentRequest as InstrumentRequestData,
             LoginRequest as LoginRequestData, LogoutRequest as LogoutRequestData,
             SubscriptionRequest as SubscriptionRequestData,
         },
-        subscription_request::{Request, request::Data as RequestData},
+        subscription_request::{Request as SubRequest, request::Data as SubRequestData},
     },
 };
 
 /// Settings required for establishing a connection.
-/// Service may be one of available services:
-/// - `REAL_TIME`
-/// - `DELAYED`
-///
-/// (requires proper account level permissions)
 #[derive(Default, Debug)]
 pub struct OpenfeedConfig {
     pub username: String,
     pub password: String,
     pub server: String,
-    pub service: String,
 }
 
 /// A client for interacting with the Barchart Openfeed protocol.
@@ -122,10 +119,13 @@ impl OpenfeedClient {
     pub async fn subscribe_symbols(
         &mut self,
         symbols: impl IntoIterator<Item = String>,
+        subscription_types: &[SubscriptionType],
+        service: Service,
     ) -> OpenfeedResult<()> {
         self.create_subscription_request(
-            symbols.into_iter().map(RequestData::Symbol),
-            &[SubscriptionType::Quote],
+            symbols.into_iter().map(SubRequestData::Symbol),
+            subscription_types,
+            service,
         )
         .await
     }
@@ -135,24 +135,43 @@ impl OpenfeedClient {
     pub async fn subscribe_exchanges(
         &mut self,
         exchanges: impl IntoIterator<Item = String>,
+        subscription_types: &[SubscriptionType],
+        service: Service,
     ) -> OpenfeedResult<()> {
         self.create_subscription_request(
-            exchanges.into_iter().map(RequestData::Exchange),
-            &[SubscriptionType::Quote],
+            exchanges.into_iter().map(SubRequestData::Exchange),
+            subscription_types,
+            service,
         )
         .await
     }
 
-    /// Subscribes to OHLC (regular and non-regular) for the given symbols.
+    /// Request an instrument definitions for a symbol.
     #[maybe_async::maybe_async]
-    pub async fn subscribe_ohlc(
+    pub async fn request_instrument(&mut self, symbol: String) -> OpenfeedResult<()> {
+        self.create_instrument_request(DefRequest::Symbol(symbol))
+            .await
+    }
+
+    /// Request all instrument definitions for an exchange.
+    #[maybe_async::maybe_async]
+    pub async fn request_instruments_for_exchange(
         &mut self,
-        symbols: impl IntoIterator<Item = String>,
+        exchange: String,
     ) -> OpenfeedResult<()> {
-        self.create_subscription_request(
-            symbols.into_iter().map(RequestData::Symbol),
-            &[SubscriptionType::Ohlc, SubscriptionType::OhlcNonRegular],
-        )
+        self.create_instrument_request(DefRequest::Exchange(exchange))
+            .await
+    }
+
+    /// Request available exchanges.
+    #[maybe_async::maybe_async]
+    pub async fn request_exchanges(&mut self) -> OpenfeedResult<()> {
+        self.send_message(OpenfeedGatewayRequest {
+            data: Some(ExchangeRequestData(ExchangeRequest {
+                token: self.token(),
+                ..Default::default()
+            })),
+        })
         .await
     }
 
@@ -163,7 +182,7 @@ impl OpenfeedClient {
     /// ```
     /// use openfeed_gateway_message::Data::*,
     ///
-    /// for message in self.read_messages() {
+    /// for message in client.read_messages() {
     ///     match message?.data {
     ///         Some(LoginResponse(_)) => todo!(),
     ///         Some(LogoutResponse(_)) => todo!(),
@@ -206,21 +225,34 @@ impl OpenfeedClient {
     #[maybe_async::maybe_async]
     async fn create_subscription_request(
         &mut self,
-        requests: impl IntoIterator<Item = RequestData>,
+        requests: impl IntoIterator<Item = SubRequestData>,
         subscription_types: &[SubscriptionType],
+        service: Service,
     ) -> OpenfeedResult<()> {
         self.send_message(OpenfeedGatewayRequest {
             data: Some(SubscriptionRequestData(SubscriptionRequest {
                 token: self.token(),
-                service: self.service() as i32,
+                service: service as i32,
                 requests: requests
                     .into_iter()
-                    .map(|data| Request {
+                    .map(|data| SubRequest {
                         data: Some(data),
                         subscription_type: subscription_types.iter().map(|t| *t as i32).collect(),
                         ..Default::default()
                     })
                     .collect(),
+                ..Default::default()
+            })),
+        })
+        .await
+    }
+
+    #[maybe_async::maybe_async]
+    async fn create_instrument_request(&mut self, request: DefRequest) -> OpenfeedResult<()> {
+        self.send_message(OpenfeedGatewayRequest {
+            data: Some(InstrumentRequestData(InstrumentRequest {
+                token: self.token(),
+                request: Some(request),
                 ..Default::default()
             })),
         })
@@ -239,17 +271,8 @@ impl OpenfeedClient {
     }
 
     fn token(&self) -> String {
-        self.token.clone().expect("token must acquired first")
-    }
-
-    fn service(&self) -> Service {
-        match self.config.service.as_str() {
-            "REAL_TIME" => Service::RealTime,
-            "REAL_TIME_SNAPSHOT" => Service::RealTimeSnapshot,
-            "DELAYED" => Service::Delayed,
-            "DELAYED_SNAPSHOT" => Service::DelayedSnapshot,
-            "END_OF_DAY" => Service::EndOfDay,
-            _ => Service::UnknownService,
-        }
+        self.token
+            .clone()
+            .expect("requires token: establish connection first")
     }
 }
