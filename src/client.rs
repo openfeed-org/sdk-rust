@@ -23,11 +23,42 @@ use crate::{
 };
 
 /// Settings required for establishing a connection.
-#[derive(Default, Debug)]
+/// Server defaults to "openfeed.aws.barchart.com"
+/// ```
+/// let config = OpenfeedConfig::default()
+///     .username("<user>")
+///     .password("<pass>");
+/// ```
+#[derive(Debug)]
 pub struct OpenfeedConfig {
     pub username: String,
     pub password: String,
     pub server: String,
+}
+
+impl Default for OpenfeedConfig {
+    fn default() -> Self {
+        OpenfeedConfig {
+            username: String::new(),
+            password: String::new(),
+            server: "openfeed.aws.barchart.com".to_string(),
+        }
+    }
+}
+
+impl OpenfeedConfig {
+    pub fn username(mut self, username: impl Into<String>) -> Self {
+        self.username = username.into();
+        self
+    }
+    pub fn password(mut self, password: impl Into<String>) -> Self {
+        self.password = password.into();
+        self
+    }
+    pub fn server(mut self, server: impl Into<String>) -> Self {
+        self.server = server.into();
+        self
+    }
 }
 
 /// A client for interacting with the Barchart Openfeed protocol.
@@ -118,12 +149,12 @@ impl OpenfeedClient {
     #[maybe_async::maybe_async]
     pub async fn subscribe_symbols(
         &mut self,
-        symbols: impl IntoIterator<Item = String>,
+        symbols: impl IntoIterator<Item = impl Into<String>>,
         subscription_types: &[SubscriptionType],
         service: Service,
     ) -> OpenfeedResult<()> {
         self.create_subscription_request(
-            symbols.into_iter().map(SubRequestData::Symbol),
+            symbols.into_iter().map(|s|SubRequestData::Symbol(s.into())),
             subscription_types,
             service,
         )
@@ -134,12 +165,12 @@ impl OpenfeedClient {
     #[maybe_async::maybe_async]
     pub async fn subscribe_exchanges(
         &mut self,
-        exchanges: impl IntoIterator<Item = String>,
+        exchanges: impl IntoIterator<Item = impl Into<String>>,
         subscription_types: &[SubscriptionType],
         service: Service,
     ) -> OpenfeedResult<()> {
         self.create_subscription_request(
-            exchanges.into_iter().map(SubRequestData::Exchange),
+            exchanges.into_iter().map(|s|SubRequestData::Exchange(s.into())),
             subscription_types,
             service,
         )
@@ -148,8 +179,8 @@ impl OpenfeedClient {
 
     /// Request an instrument definitions for a symbol.
     #[maybe_async::maybe_async]
-    pub async fn request_instrument(&mut self, symbol: String) -> OpenfeedResult<()> {
-        self.create_instrument_request(DefRequest::Symbol(symbol))
+    pub async fn request_instrument(&mut self, symbol: impl Into<String>) -> OpenfeedResult<()> {
+        self.create_instrument_request(DefRequest::Symbol(symbol.into()))
             .await
     }
 
@@ -157,9 +188,9 @@ impl OpenfeedClient {
     #[maybe_async::maybe_async]
     pub async fn request_instruments_for_exchange(
         &mut self,
-        exchange: String,
+        exchange: impl Into<String>,
     ) -> OpenfeedResult<()> {
-        self.create_instrument_request(DefRequest::Exchange(exchange))
+        self.create_instrument_request(DefRequest::Exchange(exchange.into()))
             .await
     }
 

@@ -30,11 +30,10 @@ fn run(config: client::OpenfeedConfig, symbols: Vec<String>) -> error::OpenfeedR
 fn main() {
     let args = common::Args::parse();
 
-    let config = client::OpenfeedConfig {
-        username: args.username,
-        password: args.password,
-        server: args.server,
-    };
+    let config = client::OpenfeedConfig::default()
+        .username(args.username)
+        .password(args.password)
+        .server(args.server);
 
     let symbols: Vec<String> = args
         .symbols
