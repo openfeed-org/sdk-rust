@@ -2,6 +2,13 @@
 name = "sdk-rust"
 version = "0.1.0"
 edition = "2024"
+description = "This SDK facilitates client connections and message parsing using the Openfeed Protocol for streaming Barchart market data."
+keywords = ["market", "data","barchart","openfeed"]
+homepage = "https://openfeed.org/"
+repository = "https://github.com/openfeed-org/sdk-rust"
+documentation = "https://docs.barchart.com/openfeed/#/"
+readme = "README.md"
+license = "MIT"
 resolver = "2"
 
 [features]
@@ -13,7 +20,6 @@ smol-runtime = ["dep:async-tungstenite","async-tungstenite/smol-runtime","async-
 [dependencies]
 prost = "0.14.4"
 thiserror = "2.0.18"
-
 tungstenite = "0.29.0"
 async-tungstenite = { version = "0.34.1", optional = true }
 maybe-async = "0.2.11"
