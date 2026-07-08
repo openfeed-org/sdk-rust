@@ -4,8 +4,8 @@ pub mod openfeed {
 
 pub mod error;
 
-use mutually_exclusive_features::exactly_one_of;
-exactly_one_of!("blocking", "tokio-runtime", "gio-runtime", "smol-runtime");
+use mutually_exclusive_features::none_or_one_of;
+none_or_one_of!("blocking", "tokio-runtime", "gio-runtime", "smol-runtime");
 
 // Client requires a runtime to determine a connection type
 #[cfg(any(
