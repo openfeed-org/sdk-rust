@@ -1,6 +1,6 @@
 [package]
 name = "sdk-rust"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "This SDK facilitates client connections and message parsing using the Openfeed Protocol for streaming Barchart market data."
 keywords = ["market", "data","barchart","openfeed"]

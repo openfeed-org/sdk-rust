@@ -11,6 +11,7 @@ use crate::{
     openfeed::{
         ExchangeRequest, InstrumentRequest, LoginRequest, LogoutRequest, OpenfeedGatewayMessage,
         OpenfeedGatewayRequest, Result, Service, SubscriptionRequest, SubscriptionType,
+        instrument_definition::InstrumentType,
         instrument_request::Request as DefRequest,
         openfeed_gateway_message::Data::{LoginResponse, LogoutResponse},
         openfeed_gateway_request::Data::{
@@ -154,8 +155,11 @@ impl OpenfeedClient {
         service: Service,
     ) -> OpenfeedResult<()> {
         self.create_subscription_request(
-            symbols.into_iter().map(|s|SubRequestData::Symbol(s.into())),
+            symbols
+                .into_iter()
+                .map(|s| SubRequestData::Symbol(s.into())),
             subscription_types,
+            &[],
             service,
         )
         .await
@@ -167,11 +171,15 @@ impl OpenfeedClient {
         &mut self,
         exchanges: impl IntoIterator<Item = impl Into<String>>,
         subscription_types: &[SubscriptionType],
+        instrument_types: &[InstrumentType],
         service: Service,
     ) -> OpenfeedResult<()> {
         self.create_subscription_request(
-            exchanges.into_iter().map(|s|SubRequestData::Exchange(s.into())),
+            exchanges
+                .into_iter()
+                .map(|s| SubRequestData::Exchange(s.into())),
             subscription_types,
+            instrument_types,
             service,
         )
         .await
@@ -258,6 +266,7 @@ impl OpenfeedClient {
         &mut self,
         requests: impl IntoIterator<Item = SubRequestData>,
         subscription_types: &[SubscriptionType],
+        instrument_types: &[InstrumentType],
         service: Service,
     ) -> OpenfeedResult<()> {
         self.send_message(OpenfeedGatewayRequest {
@@ -269,6 +278,7 @@ impl OpenfeedClient {
                     .map(|data| SubRequest {
                         data: Some(data),
                         subscription_type: subscription_types.iter().map(|t| *t as i32).collect(),
+                        instrument_type: instrument_types.iter().map(|t| *t as i32).collect(),
                         ..Default::default()
                     })
                     .collect(),
