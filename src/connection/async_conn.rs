@@ -1,5 +1,6 @@
-use futures_lite::stream::StreamExt;
-use futures_lite::stream::{self};
+use futures::lock::Mutex;
+use futures::stream::StreamExt;
+use futures::stream::{self};
 
 #[cfg(feature = "gio-runtime")]
 use async_tungstenite::gio::{ConnectStream, connect_async};
@@ -18,8 +19,8 @@ use crate::{
 };
 
 pub(crate) struct AsyncConnection {
-    reader: WebSocketReceiver<ConnectStream>,
-    writer: WebSocketSender<ConnectStream>,
+    reader: Mutex<WebSocketReceiver<ConnectStream>>,
+    writer: Mutex<WebSocketSender<ConnectStream>>,
 }
 
 #[maybe_async::async_impl(?Send)]
@@ -27,27 +28,31 @@ impl Connection for AsyncConnection {
     #[inline]
     async fn new(server: String) -> OpenfeedResult<Self> {
         let (stream, _) = connect_async(server).await?;
-        let (writer, reader) = stream.split();
+        let (w, r) = stream.split();
+        let writer = Mutex::new(w);
+        let reader = Mutex::new(r);
         Ok(AsyncConnection { writer, reader })
     }
 
     #[inline]
-    async fn close(&mut self) -> OpenfeedResult<()> {
-        self.writer.close(None).await.map_err(OpenfeedError::from)
+    async fn close(&self) -> OpenfeedResult<()> {
+        let mut writer = self.writer.lock().await;
+        writer.close(None).await.map_err(OpenfeedError::from)
     }
 
     #[inline]
-    async fn send(&mut self, msg: Message) -> OpenfeedResult<()> {
-        self.writer.send(msg).await.map_err(OpenfeedError::from)
+    async fn send(&self, msg: Message) -> OpenfeedResult<()> {
+        let mut writer = self.writer.lock().await;
+        writer.send(msg).await.map_err(OpenfeedError::from)
     }
 
     #[inline]
-    async fn recv(&mut self) -> impl Feed<Item = OpenfeedResult<Bytes>> {
-        let conn = &mut self.reader;
+    async fn recv(&self) -> impl Feed<Item = OpenfeedResult<Bytes>> {
+        let conn = self.reader.lock().await;
         let buff = Bytes::new();
         Box::pin(stream::unfold(
             (conn, buff),
-            |(conn, mut buff)| async move {
+            |(mut conn, mut buff)| async move {
                 loop {
                     if buff.remaining() >= 2 {
                         let len = buff.get_u16() as usize;

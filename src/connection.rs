@@ -20,7 +20,7 @@ pub(crate) mod sync_conn;
 ))]
 pub(crate) mod runtime {
     pub(crate) use super::async_conn::AsyncConnection as ConnectionType;
-    pub(crate) use futures_lite::Stream as Feed;
+    pub(crate) use futures::Stream as Feed;
 }
 #[cfg(feature = "blocking")]
 pub(crate) mod runtime {
@@ -33,7 +33,7 @@ pub(crate) use runtime::*;
 #[maybe_async::maybe_async(?Send)]
 pub trait Connection: Sized {
     async fn new(server: String) -> OpenfeedResult<Self>;
-    async fn close(&mut self) -> OpenfeedResult<()>;
-    async fn send(&mut self, msg: Message) -> OpenfeedResult<()>;
-    async fn recv(&mut self) -> impl Feed<Item = OpenfeedResult<Bytes>>;
+    async fn close(&self) -> OpenfeedResult<()>;
+    async fn send(&self, msg: Message) -> OpenfeedResult<()>;
+    async fn recv(&self) -> impl Feed<Item = OpenfeedResult<Bytes>>;
 }

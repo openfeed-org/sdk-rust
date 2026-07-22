@@ -1,5 +1,5 @@
 #[cfg(not(feature = "blocking"))]
-use futures_lite::StreamExt;
+use futures::StreamExt;
 
 use prost::Message;
 use std::default::Default;
@@ -121,7 +121,7 @@ impl OpenfeedClient {
 
     /// Safely logs out and closes connection
     #[maybe_async::maybe_async]
-    pub async fn disconnect(&mut self) -> OpenfeedResult<()> {
+    pub async fn disconnect(&self) -> OpenfeedResult<()> {
         let logout_request = OpenfeedGatewayRequest {
             data: Some(LogoutRequestData(LogoutRequest {
                 token: self.token(),
@@ -149,7 +149,7 @@ impl OpenfeedClient {
     /// Subscribes to quotes for the given symbols.
     #[maybe_async::maybe_async]
     pub async fn subscribe_symbols(
-        &mut self,
+        &self,
         symbols: impl IntoIterator<Item = impl Into<String>>,
         subscription_types: &[SubscriptionType],
         service: Service,
@@ -168,7 +168,7 @@ impl OpenfeedClient {
     /// Subscribes to quotes for every instrument on the given exchanges.
     #[maybe_async::maybe_async]
     pub async fn subscribe_exchanges(
-        &mut self,
+        &self,
         exchanges: impl IntoIterator<Item = impl Into<String>>,
         subscription_types: &[SubscriptionType],
         instrument_types: &[InstrumentType],
@@ -187,7 +187,7 @@ impl OpenfeedClient {
 
     /// Request an instrument definitions for a symbol.
     #[maybe_async::maybe_async]
-    pub async fn request_instrument(&mut self, symbol: impl Into<String>) -> OpenfeedResult<()> {
+    pub async fn request_instrument(&self, symbol: impl Into<String>) -> OpenfeedResult<()> {
         self.create_instrument_request(DefRequest::Symbol(symbol.into()))
             .await
     }
@@ -195,7 +195,7 @@ impl OpenfeedClient {
     /// Request all instrument definitions for an exchange.
     #[maybe_async::maybe_async]
     pub async fn request_instruments_for_exchange(
-        &mut self,
+        &self,
         exchange: impl Into<String>,
     ) -> OpenfeedResult<()> {
         self.create_instrument_request(DefRequest::Exchange(exchange.into()))
@@ -204,7 +204,7 @@ impl OpenfeedClient {
 
     /// Request available exchanges.
     #[maybe_async::maybe_async]
-    pub async fn request_exchanges(&mut self) -> OpenfeedResult<()> {
+    pub async fn request_exchanges(&self) -> OpenfeedResult<()> {
         self.send_message(OpenfeedGatewayRequest {
             data: Some(ExchangeRequestData(ExchangeRequest {
                 token: self.token(),
@@ -244,7 +244,7 @@ impl OpenfeedClient {
     /// ```
     #[maybe_async::maybe_async]
     pub async fn read_messages(
-        &mut self,
+        &self,
     ) -> impl Feed<Item = OpenfeedResult<OpenfeedGatewayMessage>> {
         self.read_bytes().await.map(|res| match res {
             Ok(bytes) => OpenfeedGatewayMessage::decode(bytes).map_err(OpenfeedError::from),
@@ -257,13 +257,13 @@ impl OpenfeedClient {
     /// an `Iterator` when using the blocking client
     /// or a `Stream` when using the nonblocking client.
     #[maybe_async::maybe_async]
-    pub async fn read_bytes(&mut self) -> impl Feed<Item = OpenfeedResult<Bytes>> {
+    pub async fn read_bytes(&self) -> impl Feed<Item = OpenfeedResult<Bytes>> {
         self.connection().recv().await
     }
 
     #[maybe_async::maybe_async]
     async fn create_subscription_request(
-        &mut self,
+        &self,
         requests: impl IntoIterator<Item = SubRequestData>,
         subscription_types: &[SubscriptionType],
         instrument_types: &[InstrumentType],
@@ -289,7 +289,7 @@ impl OpenfeedClient {
     }
 
     #[maybe_async::maybe_async]
-    async fn create_instrument_request(&mut self, request: DefRequest) -> OpenfeedResult<()> {
+    async fn create_instrument_request(&self, request: DefRequest) -> OpenfeedResult<()> {
         self.send_message(OpenfeedGatewayRequest {
             data: Some(InstrumentRequestData(InstrumentRequest {
                 token: self.token(),
@@ -301,13 +301,13 @@ impl OpenfeedClient {
     }
 
     #[maybe_async::maybe_async]
-    async fn send_message<T: Message>(&mut self, msg: T) -> OpenfeedResult<()> {
+    async fn send_message<T: Message>(&self, msg: T) -> OpenfeedResult<()> {
         self.connection().send(msg.encode_to_vec().into()).await
     }
 
-    fn connection(&mut self) -> &mut ConnectionType {
+    fn connection(&self) -> &ConnectionType {
         self.connection
-            .as_mut()
+            .as_ref()
             .expect("connection not established")
     }
 

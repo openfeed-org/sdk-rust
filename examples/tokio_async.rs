@@ -4,7 +4,7 @@ mod common;
 #[cfg(feature = "tokio-runtime")]
 use {
     clap::Parser,
-    futures_lite::StreamExt,
+    futures::StreamExt,
     sdk_rust::{
         client,
         error::OpenfeedResult,
