@@ -1,6 +1,6 @@
 [package]
 name = "sdk-rust"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "This SDK facilitates client connections and message parsing using the Openfeed Protocol for streaming Barchart market data."
 keywords = ["market", "data","barchart","openfeed"]
@@ -14,7 +14,6 @@ resolver = "2"
 [features]
 blocking = ["maybe-async/is_sync", "tungstenite/native-tls", "dep:parking_lot"]
 tokio-runtime = ["dep:async-tungstenite","dep:futures","async-tungstenite/tokio-runtime","async-tungstenite/tokio-native-tls"]
-gio-runtime = ["dep:async-tungstenite","dep:futures","async-tungstenite/gio-runtime"]
 smol-runtime = ["dep:async-tungstenite","dep:futures","async-tungstenite/smol-runtime","async-tungstenite/smol-native-tls"]
 
 [dependencies]

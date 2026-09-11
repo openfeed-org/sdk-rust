@@ -17,6 +17,9 @@ pub enum OpenfeedError {
     #[error("of: deserialize error")]
     DeserializeError(),
 
+    #[error("client(blocking): attempting to write while reading feed")]
+    FeedActive(),
+
     #[error("tungstenite: {0}")]
     Tungstenite(#[from] tungstenite::Error),
 

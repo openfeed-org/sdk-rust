@@ -5,7 +5,6 @@ use tungstenite::{Bytes, Message};
 use crate::error::OpenfeedResult;
 
 #[cfg(any(
-    feature = "gio-runtime",
     feature = "tokio-runtime",
     feature = "smol-runtime"
 ))]
@@ -14,7 +13,6 @@ pub(crate) mod async_conn;
 pub(crate) mod sync_conn;
 
 #[cfg(any(
-    feature = "gio-runtime",
     feature = "tokio-runtime",
     feature = "smol-runtime"
 ))]
@@ -30,7 +28,7 @@ pub(crate) mod runtime {
 
 pub(crate) use runtime::*;
 
-#[maybe_async::maybe_async(?Send)]
+#[maybe_async::maybe_async]
 pub trait Connection: Sized {
     async fn new(server: String) -> OpenfeedResult<Self>;
     async fn close(&self) -> OpenfeedResult<()>;

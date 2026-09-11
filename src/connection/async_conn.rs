@@ -2,8 +2,6 @@ use futures::lock::Mutex;
 use futures::stream::StreamExt;
 use futures::stream::{self};
 
-#[cfg(feature = "gio-runtime")]
-use async_tungstenite::gio::{ConnectStream, connect_async};
 #[cfg(feature = "smol-runtime")]
 use async_tungstenite::smol::{ConnectStream, connect_async};
 #[cfg(feature = "tokio-runtime")]
@@ -18,12 +16,14 @@ use crate::{
     error::{OpenfeedError, OpenfeedResult},
 };
 
+/// Unlike the blocking counterpart, an `AsyncConnection`
+/// may be read from and written to simultaneously.
 pub(crate) struct AsyncConnection {
     reader: Mutex<WebSocketReceiver<ConnectStream>>,
     writer: Mutex<WebSocketSender<ConnectStream>>,
 }
 
-#[maybe_async::async_impl(?Send)]
+#[maybe_async::async_impl]
 impl Connection for AsyncConnection {
     #[inline]
     async fn new(server: String) -> OpenfeedResult<Self> {

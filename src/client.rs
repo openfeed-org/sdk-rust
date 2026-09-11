@@ -66,7 +66,7 @@ impl OpenfeedConfig {
 /// Utilizes a synchronous connection when feature `blocking` is set,
 /// or a non-blocking async connection when one (and only one) of
 /// the available async runtime features
-/// `tokio-runtime`, `gio-runtime`, `smol-runtime` is set.
+/// `tokio-runtime` or `smol-runtime` is set.
 pub struct OpenfeedClient {
     config: OpenfeedConfig,
     connection: Option<ConnectionType>,
@@ -243,9 +243,7 @@ impl OpenfeedClient {
     /// }
     /// ```
     #[maybe_async::maybe_async]
-    pub async fn read_messages(
-        &self,
-    ) -> impl Feed<Item = OpenfeedResult<OpenfeedGatewayMessage>> {
+    pub async fn read_messages(&self) -> impl Feed<Item = OpenfeedResult<OpenfeedGatewayMessage>> {
         self.read_bytes().await.map(|res| match res {
             Ok(bytes) => OpenfeedGatewayMessage::decode(bytes).map_err(OpenfeedError::from),
             Err(err) => Err(err),
