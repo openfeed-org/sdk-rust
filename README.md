@@ -5,7 +5,6 @@ Facilitates client connections and message parsing using the Openfeed Protocol f
 The SDK offers a basic blocking streaming client or one compatible with one of the popular async runtimes:
 - [Tokio](https://tokio.rs)
 - [Smol](https://github.com/smol-rs/smol)
-- [Gio](https://gtk-rs.org/gtk4-rs/stable/latest/docs/gio/)
 
 **Blocking**:
 ```
