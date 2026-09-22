@@ -299,7 +299,7 @@ impl OpenfeedClient {
     }
 
     #[maybe_async::maybe_async]
-    async fn send_message<T: Message>(&self, msg: T) -> OpenfeedResult<()> {
+    pub async fn send_message<T: Message>(&self, msg: T) -> OpenfeedResult<()> {
         self.connection().send(msg.encode_to_vec().into()).await
     }
 
