@@ -4,18 +4,12 @@ use tungstenite::{Bytes, Message};
 
 use crate::error::OpenfeedResult;
 
-#[cfg(any(
-    feature = "tokio-runtime",
-    feature = "smol-runtime"
-))]
+#[cfg(any(feature = "tokio-runtime", feature = "smol-runtime"))]
 pub(crate) mod async_conn;
 #[cfg(feature = "blocking")]
 pub(crate) mod sync_conn;
 
-#[cfg(any(
-    feature = "tokio-runtime",
-    feature = "smol-runtime"
-))]
+#[cfg(any(feature = "tokio-runtime", feature = "smol-runtime"))]
 pub(crate) mod runtime {
     pub(crate) use super::async_conn::AsyncConnection as ConnectionType;
     pub(crate) use futures::Stream as Feed;

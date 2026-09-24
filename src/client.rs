@@ -9,8 +9,9 @@ use crate::{
     connection::{Connection, ConnectionType, Feed},
     error::{OpenfeedError, OpenfeedResult},
     openfeed::{
-        ExchangeRequest, InstrumentRequest, LoginRequest, LogoutRequest, OpenfeedGatewayMessage,
-        OpenfeedGatewayRequest, Result, Service, SubscriptionRequest, SubscriptionType,
+        BulkSubscriptionFilter, ExchangeRequest, InstrumentRequest, LoginRequest, LogoutRequest,
+        OpenfeedGatewayMessage, OpenfeedGatewayRequest, Result, Service, SubscriptionRequest,
+        SubscriptionType,
         instrument_definition::InstrumentType,
         instrument_request::Request as DefRequest,
         openfeed_gateway_message::Data::{LoginResponse, LogoutResponse},
@@ -60,6 +61,14 @@ impl OpenfeedConfig {
         self.server = server.into();
         self
     }
+}
+
+pub enum SubscriptionSettings {
+    DoNotSendInstruments,
+    DoNotSendSnapshots,
+    SnapshotInterval(i32),
+    BulkSubscriptionFilter(Vec<BulkSubscriptionFilter>),
+    SpreadTypeFilter(Vec<String>),
 }
 
 /// A client for interacting with the Barchart Openfeed protocol.
@@ -153,6 +162,7 @@ impl OpenfeedClient {
         symbols: impl IntoIterator<Item = impl Into<String>>,
         subscription_types: &[SubscriptionType],
         service: Service,
+        settings: impl IntoIterator<Item = SubscriptionSettings>,
     ) -> OpenfeedResult<()> {
         self.create_subscription_request(
             symbols
@@ -161,6 +171,8 @@ impl OpenfeedClient {
             subscription_types,
             &[],
             service,
+            false,
+            settings,
         )
         .await
     }
@@ -168,6 +180,50 @@ impl OpenfeedClient {
     /// Subscribes to quotes for every instrument on the given exchanges.
     #[maybe_async::maybe_async]
     pub async fn subscribe_exchanges(
+        &self,
+        exchanges: impl IntoIterator<Item = impl Into<String>>,
+        subscription_types: &[SubscriptionType],
+        instrument_types: &[InstrumentType],
+        service: Service,
+        settings: impl IntoIterator<Item = SubscriptionSettings>,
+    ) -> OpenfeedResult<()> {
+        self.create_subscription_request(
+            exchanges
+                .into_iter()
+                .map(|s| SubRequestData::Exchange(s.into())),
+            subscription_types,
+            instrument_types,
+            service,
+            false,
+            settings,
+        )
+        .await
+    }
+
+    /// Unsubscribes to quotes for the given symbols.
+    #[maybe_async::maybe_async]
+    pub async fn unsubscribe_symbols(
+        &self,
+        symbols: impl IntoIterator<Item = impl Into<String>>,
+        subscription_types: &[SubscriptionType],
+        service: Service,
+    ) -> OpenfeedResult<()> {
+        self.create_subscription_request(
+            symbols
+                .into_iter()
+                .map(|s| SubRequestData::Symbol(s.into())),
+            subscription_types,
+            &[],
+            service,
+            true,
+            [],
+        )
+        .await
+    }
+
+    /// Unsubscribes to quotes from the given exchanges.
+    #[maybe_async::maybe_async]
+    pub async fn unsubscribe_exchanges(
         &self,
         exchanges: impl IntoIterator<Item = impl Into<String>>,
         subscription_types: &[SubscriptionType],
@@ -181,6 +237,8 @@ impl OpenfeedClient {
             subscription_types,
             instrument_types,
             service,
+            true,
+            [],
         )
         .await
     }
@@ -266,18 +324,38 @@ impl OpenfeedClient {
         subscription_types: &[SubscriptionType],
         instrument_types: &[InstrumentType],
         service: Service,
+        unsubscribe: bool,
+        settings: impl IntoIterator<Item = SubscriptionSettings>,
     ) -> OpenfeedResult<()> {
+        let mut subrequest = SubRequest::default();
+        settings.into_iter().for_each(|setting| match setting {
+            SubscriptionSettings::DoNotSendInstruments => {
+                subrequest.subscription_do_not_send_instruments = true
+            }
+            SubscriptionSettings::DoNotSendSnapshots => {
+                subrequest.subscription_do_not_send_snapshots = true
+            }
+            SubscriptionSettings::SnapshotInterval(i) => subrequest.snapshot_interval_seconds = i,
+            SubscriptionSettings::BulkSubscriptionFilter(bulk_subscription_filters) => {
+                subrequest.bulk_subscription_filter = bulk_subscription_filters
+            }
+            SubscriptionSettings::SpreadTypeFilter(filters) => {
+                subrequest.spread_type_filter = filters
+            }
+        });
+
         self.send_message(OpenfeedGatewayRequest {
             data: Some(SubscriptionRequestData(SubscriptionRequest {
                 token: self.token(),
                 service: service as i32,
+                unsubscribe: unsubscribe,
                 requests: requests
                     .into_iter()
                     .map(|data| SubRequest {
                         data: Some(data),
                         subscription_type: subscription_types.iter().map(|t| *t as i32).collect(),
                         instrument_type: instrument_types.iter().map(|t| *t as i32).collect(),
-                        ..Default::default()
+                        ..subrequest.clone()
                     })
                     .collect(),
                 ..Default::default()

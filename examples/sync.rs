@@ -14,7 +14,7 @@ use {
 fn run(config: client::OpenfeedConfig, symbols: Vec<String>) -> error::OpenfeedResult<()> {
     let mut c = client::OpenfeedClient::new(config);
     c.connect()?;
-    c.subscribe_symbols(symbols, &[SubscriptionType::Quote], Service::RealTime)?;
+    c.subscribe_symbols(symbols, &[SubscriptionType::Quote], Service::RealTime, [])?;
     for message in c.read_messages() {
         // Add handlers for message types here
         match message?.data {

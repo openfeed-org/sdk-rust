@@ -16,7 +16,7 @@ use {
 async fn run(config: client::OpenfeedConfig, symbols: Vec<String>) -> OpenfeedResult<()> {
     let mut c = client::OpenfeedClient::new(config);
     c.connect().await?;
-    c.subscribe_symbols(symbols, &[SubscriptionType::Quote], Service::RealTime)
+    c.subscribe_symbols(symbols, &[SubscriptionType::Quote], Service::RealTime, [])
         .await?;
 
     let mut messages = c.read_messages().await;
