@@ -23,11 +23,13 @@ At least one runtime feature must be provided in order to use the client.
 ## Usage
 Upon connection, the client may subscribe to either individual symbols or entire exchanges. More information about the available methods [here]("https://docs.barchart.com/openfeed/#/openfeed_streaming"). Streaming data can be accessed from the client via a `Feed` type which is either an `Iterator` or `Stream` depending on the runtime feature selected. Feed messages can be read off the stream with `read_messages()` or as raw bytes with `read_bytes()`.
 
+Subscriptions are configured with `SubscriptionOptions`, covering subscription and instrument types, snapshot delivery, and real-time versus delayed service. Every setting has a server default, so only the ones you want to change need to be set.
+
 ```rust
 use {
     sdk_rust::{
         client, error,
-        openfeed::{Service, SubscriptionType, openfeed_gateway_message::Data::*},
+        openfeed::{SubscriptionType, openfeed_gateway_message::Data::*},
     },
 };
 
@@ -40,7 +42,10 @@ fn main() -> Result<(), error::OpenfeedError> {
             .password("<pass>"),
     );
     c.connect()?;
-    c.subscribe_symbols(symbols, &[SubscriptionType::Quote], Service::RealTime)?;
+    c.subscribe_symbols(
+        symbols,
+        client::SubscriptionOptions::default().subscription_types([SubscriptionType::Quote]),
+    )?;
     Ok(for message in c.read_messages() {
         match message?.data {
             Some(InstrumentDefinition(def)) => println!("definition: {:?}", def),
