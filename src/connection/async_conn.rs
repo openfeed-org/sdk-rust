@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use futures::lock::Mutex;
 use futures::stream::StreamExt;
 use futures::stream::{self};
@@ -21,6 +24,7 @@ use crate::{
 pub(crate) struct AsyncConnection {
     reader: Mutex<WebSocketReceiver<ConnectStream>>,
     writer: Mutex<WebSocketSender<ConnectStream>>,
+    closed: Arc<AtomicBool>,
 }
 
 #[maybe_async::async_impl]
@@ -31,12 +35,18 @@ impl Connection for AsyncConnection {
         let (w, r) = stream.split();
         let writer = Mutex::new(w);
         let reader = Mutex::new(r);
-        Ok(AsyncConnection { writer, reader })
+        let closed = Arc::new(AtomicBool::new(false));
+        Ok(AsyncConnection {
+            writer,
+            reader,
+            closed,
+        })
     }
 
     #[inline]
     async fn close(&self) -> OpenfeedResult<()> {
         let mut writer = self.writer.lock().await;
+        self.closed.store(true, Ordering::Relaxed);
         writer.close(None).await.map_err(OpenfeedError::from)
     }
 
@@ -52,7 +62,7 @@ impl Connection for AsyncConnection {
         let buff = Bytes::new();
         Box::pin(stream::unfold(
             (conn, buff),
-            |(mut conn, mut buff)| async move {
+            move |(mut conn, mut buff)| async move {
                 loop {
                     if buff.remaining() >= 2 {
                         let len = buff.get_u16() as usize;
@@ -62,7 +72,13 @@ impl Connection for AsyncConnection {
                     match conn.next().await {
                         Some(Ok(Message::Binary(data))) => buff = data,
                         Some(Ok(_)) => {} // skip nonbinary messages
-                        Some(Err(Error::ConnectionClosed)) | None => return None,
+                        Some(Err(Error::ConnectionClosed)) | None => {
+                            if self.closed.load(Ordering::Relaxed) {
+                                return None;
+                            }
+                            self.closed.store(true, Ordering::Relaxed);
+                            return Some((Err(OpenfeedError::StreamClosed()), (conn, buff)));
+                        }
                         Some(Err(err)) => {
                             return Some((Err(OpenfeedError::from(err)), (conn, buff)));
                         }

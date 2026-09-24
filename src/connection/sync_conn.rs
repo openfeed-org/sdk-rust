@@ -1,4 +1,4 @@
-use std::{iter::from_fn, net::TcpStream};
+use std::{iter::from_fn, net::TcpStream, sync::{Arc, atomic::{AtomicBool, Ordering}}};
 
 use parking_lot::Mutex;
 use prost::bytes::Buf;
@@ -14,6 +14,7 @@ use crate::{
 /// will return a `FeedActive` error.
 pub(crate) struct SyncConnection {
     stream: Mutex<WebSocket<MaybeTlsStream<TcpStream>>>,
+    closed: Arc<AtomicBool>,
 }
 
 #[maybe_async::sync_impl]
@@ -22,7 +23,8 @@ impl Connection for SyncConnection {
     fn new(server: String) -> OpenfeedResult<Self> {
         let (s, _) = connect(server)?;
         let stream = Mutex::new(s);
-        Ok(SyncConnection { stream })
+        let closed = Arc::new(AtomicBool::new(false));
+        Ok(SyncConnection { stream, closed })
     }
 
     #[inline]
@@ -52,7 +54,10 @@ impl Connection for SyncConnection {
                 match stream.read() {
                     Ok(Message::Binary(data)) => buff = data,
                     Ok(_) => {} // skip nonbinary messages
-                    Err(Error::ConnectionClosed) => return None,
+                    Err(Error::ConnectionClosed) => return match self.closed.load(Ordering::Relaxed) {
+                        true => None,
+                        false => Some(Err(OpenfeedError::StreamClosed())),
+                    },
                     Err(err) => return Some(Err(OpenfeedError::from(err))),
                 }
             }
