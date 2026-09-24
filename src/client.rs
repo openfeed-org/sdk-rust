@@ -63,14 +63,6 @@ impl OpenfeedConfig {
     }
 }
 
-pub enum SubscriptionSettings {
-    DoNotSendInstruments,
-    DoNotSendSnapshots,
-    SnapshotInterval(i32),
-    BulkSubscriptionFilter(Vec<BulkSubscriptionFilter>),
-    SpreadTypeFilter(Vec<String>),
-}
-
 /// A client for interacting with the Barchart Openfeed protocol.
 /// Utilizes a synchronous connection when feature `blocking` is set,
 /// or a non-blocking async connection when one (and only one) of
@@ -160,19 +152,14 @@ impl OpenfeedClient {
     pub async fn subscribe_symbols(
         &self,
         symbols: impl IntoIterator<Item = impl Into<String>>,
-        subscription_types: &[SubscriptionType],
-        service: Service,
-        settings: impl IntoIterator<Item = SubscriptionSettings>,
+        options: SubscriptionOptions,
     ) -> OpenfeedResult<()> {
         self.create_subscription_request(
             symbols
                 .into_iter()
                 .map(|s| SubRequestData::Symbol(s.into())),
-            subscription_types,
-            &[],
-            service,
             false,
-            settings,
+            options,
         )
         .await
     }
@@ -182,20 +169,14 @@ impl OpenfeedClient {
     pub async fn subscribe_exchanges(
         &self,
         exchanges: impl IntoIterator<Item = impl Into<String>>,
-        subscription_types: &[SubscriptionType],
-        instrument_types: &[InstrumentType],
-        service: Service,
-        settings: impl IntoIterator<Item = SubscriptionSettings>,
+        options: SubscriptionOptions,
     ) -> OpenfeedResult<()> {
         self.create_subscription_request(
             exchanges
                 .into_iter()
                 .map(|s| SubRequestData::Exchange(s.into())),
-            subscription_types,
-            instrument_types,
-            service,
             false,
-            settings,
+            options,
         )
         .await
     }
@@ -205,18 +186,14 @@ impl OpenfeedClient {
     pub async fn unsubscribe_symbols(
         &self,
         symbols: impl IntoIterator<Item = impl Into<String>>,
-        subscription_types: &[SubscriptionType],
-        service: Service,
+        options: SubscriptionOptions,
     ) -> OpenfeedResult<()> {
         self.create_subscription_request(
             symbols
                 .into_iter()
                 .map(|s| SubRequestData::Symbol(s.into())),
-            subscription_types,
-            &[],
-            service,
             true,
-            [],
+            options,
         )
         .await
     }
@@ -226,27 +203,26 @@ impl OpenfeedClient {
     pub async fn unsubscribe_exchanges(
         &self,
         exchanges: impl IntoIterator<Item = impl Into<String>>,
-        subscription_types: &[SubscriptionType],
-        instrument_types: &[InstrumentType],
-        service: Service,
+        options: SubscriptionOptions,
     ) -> OpenfeedResult<()> {
         self.create_subscription_request(
             exchanges
                 .into_iter()
                 .map(|s| SubRequestData::Exchange(s.into())),
-            subscription_types,
-            instrument_types,
-            service,
             true,
-            [],
+            options,
         )
         .await
     }
 
     /// Request an instrument definitions for a symbol.
     #[maybe_async::maybe_async]
-    pub async fn request_instrument(&self, symbol: impl Into<String>) -> OpenfeedResult<()> {
-        self.create_instrument_request(DefRequest::Symbol(symbol.into()))
+    pub async fn request_instrument(
+        &self,
+        symbol: impl Into<String>,
+        options: InstrumentOptions,
+    ) -> OpenfeedResult<()> {
+        self.create_instrument_request(DefRequest::Symbol(symbol.into()), options)
             .await
     }
 
@@ -255,8 +231,9 @@ impl OpenfeedClient {
     pub async fn request_instruments_for_exchange(
         &self,
         exchange: impl Into<String>,
+        options: InstrumentOptions,
     ) -> OpenfeedResult<()> {
-        self.create_instrument_request(DefRequest::Exchange(exchange.into()))
+        self.create_instrument_request(DefRequest::Exchange(exchange.into()), options)
             .await
     }
 
@@ -321,41 +298,19 @@ impl OpenfeedClient {
     async fn create_subscription_request(
         &self,
         requests: impl IntoIterator<Item = SubRequestData>,
-        subscription_types: &[SubscriptionType],
-        instrument_types: &[InstrumentType],
-        service: Service,
         unsubscribe: bool,
-        settings: impl IntoIterator<Item = SubscriptionSettings>,
+        options: SubscriptionOptions,
     ) -> OpenfeedResult<()> {
-        let mut subrequest = SubRequest::default();
-        settings.into_iter().for_each(|setting| match setting {
-            SubscriptionSettings::DoNotSendInstruments => {
-                subrequest.subscription_do_not_send_instruments = true
-            }
-            SubscriptionSettings::DoNotSendSnapshots => {
-                subrequest.subscription_do_not_send_snapshots = true
-            }
-            SubscriptionSettings::SnapshotInterval(i) => subrequest.snapshot_interval_seconds = i,
-            SubscriptionSettings::BulkSubscriptionFilter(bulk_subscription_filters) => {
-                subrequest.bulk_subscription_filter = bulk_subscription_filters
-            }
-            SubscriptionSettings::SpreadTypeFilter(filters) => {
-                subrequest.spread_type_filter = filters
-            }
-        });
-
         self.send_message(OpenfeedGatewayRequest {
             data: Some(SubscriptionRequestData(SubscriptionRequest {
                 token: self.token(),
-                service: service as i32,
+                service: options.clone().service() as i32,
                 unsubscribe: unsubscribe,
                 requests: requests
                     .into_iter()
                     .map(|data| SubRequest {
                         data: Some(data),
-                        subscription_type: subscription_types.iter().map(|t| *t as i32).collect(),
-                        instrument_type: instrument_types.iter().map(|t| *t as i32).collect(),
-                        ..subrequest.clone()
+                        ..options.clone().sub_request()
                     })
                     .collect(),
                 ..Default::default()
@@ -365,12 +320,16 @@ impl OpenfeedClient {
     }
 
     #[maybe_async::maybe_async]
-    async fn create_instrument_request(&self, request: DefRequest) -> OpenfeedResult<()> {
+    async fn create_instrument_request(
+        &self,
+        request: DefRequest,
+        options: InstrumentOptions,
+    ) -> OpenfeedResult<()> {
         self.send_message(OpenfeedGatewayRequest {
             data: Some(InstrumentRequestData(InstrumentRequest {
                 token: self.token(),
                 request: Some(request),
-                ..Default::default()
+                ..options.clone().sub_request()
             })),
         })
         .await
@@ -391,5 +350,104 @@ impl OpenfeedClient {
         self.token
             .clone()
             .expect("requires token: establish connection first")
+    }
+}
+
+/// Options to pass to a subscription. Can be built with a default and chained methods.
+/// ```
+/// c.subscribe_symbols(symbols, SubscriptionOptions::default())?;
+/// c.subscribe_exchanges(["CME"], SubscriptionOptions::default()
+///     .subscription_types([SubscriptionType::Quote, SubscriptionType::Trades])
+///     .instrument_types([InstrumentType::Future])
+///     .delayed())?;
+/// ```
+#[derive(Default, Clone)]
+pub struct SubscriptionOptions {
+    sub_request: SubRequest,
+    delayed: bool,
+}
+
+impl SubscriptionOptions {
+    pub fn subscription_types(mut self, types: impl IntoIterator<Item = SubscriptionType>) -> Self {
+        types
+            .into_iter()
+            .for_each(|t| self.sub_request.push_subscription_type(t));
+        self
+    }
+
+    pub fn instrument_types(mut self, types: impl IntoIterator<Item = InstrumentType>) -> Self {
+        types
+            .into_iter()
+            .for_each(|t| self.sub_request.push_instrument_type(t));
+        self
+    }
+
+    pub fn bulk_subscription_filter(mut self, filter: Vec<BulkSubscriptionFilter>) -> Self {
+        self.sub_request.bulk_subscription_filter = filter;
+        self
+    }
+
+    pub fn spread_type_filter(mut self, filter: Vec<String>) -> Self {
+        self.sub_request.spread_type_filter = filter;
+        self
+    }
+
+    pub fn snapshot_interval_seconds(mut self, interval: i32) -> Self {
+        self.sub_request.snapshot_interval_seconds = interval;
+        self
+    }
+
+    pub fn do_not_send_snapshots(mut self) -> Self {
+        self.sub_request.subscription_do_not_send_snapshots = true;
+        self
+    }
+
+    pub fn do_not_send_instruments(mut self) -> Self {
+        self.sub_request.subscription_do_not_send_instruments = true;
+        self
+    }
+
+    pub fn delayed(mut self) -> Self {
+        self.delayed = true;
+        self
+    }
+
+    pub(crate) fn sub_request(self) -> SubRequest {
+        self.sub_request
+    }
+
+    pub(crate) fn service(self) -> Service {
+        match self.delayed {
+            true => Service::Delayed,
+            false => Service::RealTime,
+        }
+    }
+}
+
+/// Options to pass to an instrument request. Can be built with a default and chained methods.
+/// ```
+/// c.request_instruments_for_exchange(["CME"], SubscriptionOptions::default()
+///     .instrument_types([InstrumentType::Future, InstrumentType::Option]))?;
+/// ```
+#[derive(Default, Clone)]
+pub struct InstrumentOptions {
+    inst_request: InstrumentRequest,
+}
+
+impl InstrumentOptions {
+    pub fn instrument_types(mut self, types: impl IntoIterator<Item = InstrumentType>) -> Self {
+        types
+            .into_iter()
+            .for_each(|t| self.inst_request.push_instrument_type(t));
+        self
+    }
+
+    pub fn spread_type_filter(mut self, filter: Vec<String>) -> Self {
+        self.inst_request.spread_type = filter;
+        self
+    }
+
+    pub(crate) fn sub_request(self) -> InstrumentRequest {
+        self.inst_request
     }
 }

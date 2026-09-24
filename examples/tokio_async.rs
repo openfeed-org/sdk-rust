@@ -6,9 +6,9 @@ use {
     clap::Parser,
     futures::StreamExt,
     sdk_rust::{
-        client,
+        client::{self, SubscriptionOptions},
         error::OpenfeedResult,
-        openfeed::{Service, SubscriptionType, openfeed_gateway_message::Data::*},
+        openfeed::{SubscriptionType, openfeed_gateway_message::Data::*},
     },
 };
 
@@ -16,8 +16,11 @@ use {
 async fn run(config: client::OpenfeedConfig, symbols: Vec<String>) -> OpenfeedResult<()> {
     let mut c = client::OpenfeedClient::new(config);
     c.connect().await?;
-    c.subscribe_symbols(symbols, &[SubscriptionType::Quote], Service::RealTime, [])
-        .await?;
+    c.subscribe_symbols(
+        symbols,
+        SubscriptionOptions::default().subscription_types([SubscriptionType::Quote]),
+    )
+    .await?;
 
     let mut messages = c.read_messages().await;
     let ctrl_c = tokio::signal::ctrl_c();

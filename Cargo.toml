@@ -1,6 +1,6 @@
 [package]
 name = "sdk-rust"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 description = "This SDK facilitates client connections and message parsing using the Openfeed Protocol for streaming Barchart market data."
 keywords = ["market", "data","barchart","openfeed"]
@@ -34,7 +34,7 @@ tokio = { version = "1.52.3", features = ["full"] }
  # set an sync/async client feature to remove errors
  # and add proper syntax highlighting for a given runtime
  # when using rust-analyzer extension.
-sdk-rust = { path = ".", features = ["tokio-runtime"] }
+sdk-rust = { path = ".", features = [] }
 
 [build-dependencies]
 prost-build = "0.14.4"
