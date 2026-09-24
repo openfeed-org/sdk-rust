@@ -5,8 +5,8 @@ mod common;
 use {
     clap::Parser,
     sdk_rust::{
-        client, error,
-        openfeed::{Service, SubscriptionType, openfeed_gateway_message::Data::*},
+        client::{self, SubscriptionOptions}, error,
+        openfeed::{SubscriptionType, openfeed_gateway_message::Data::*},
     },
 };
 
@@ -15,7 +15,6 @@ fn run(config: client::OpenfeedConfig, symbols: Vec<String>) -> error::OpenfeedR
     let mut c = client::OpenfeedClient::new(config);
     c.connect()?;
     c.subscribe_symbols(
-        symbols,
         symbols,
         SubscriptionOptions::default().subscription_types([SubscriptionType::Quote]),
     )?;
